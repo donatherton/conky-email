@@ -14,7 +14,7 @@
 #
 # Author: Don Atherton
 # Web: https://donatherton.co.uk
-# WeatherWidget (c) Don Atherton don@donatherton.co.uk
+# ConkyEmail (c) Don Atherton don@donatherton.co.uk
 """
 Queries server and gets unread email from and subject fields and displays in Conky.
 Usage: set Conky to update every whatever minutes. Not every second!!
@@ -30,11 +30,11 @@ from datetime import datetime
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--username',nargs=1,required=True)
-parser.add_argument('--imap_host',nargs=1,required=True)
-parser.add_argument('--password',nargs=1,required=False)
-parser.add_argument('--port',nargs=1,required=False)
-parser.add_argument('--limit',nargs=1,required=False)
+parser.add_argument('--username', nargs=1, required=True)
+parser.add_argument('--imap_host', nargs=1, required=True)
+parser.add_argument('--password', nargs=1, required=False)
+parser.add_argument('--port', nargs=1, required=False)
+parser.add_argument('--limit', nargs=1, required=False)
 
 try:
 	args = parser.parse_args()
@@ -61,15 +61,20 @@ try:
 except:
 	limit = 5
 
-def decodeHeader(header_text):
-        text,encoding = decode_header(header_text)[0]
-        if encoding:
-            try:
-                return text.decode(encoding)
-            except: # fallback on decode error to windows encoding as this may be introduced by sloppy mail clients
-                return text.decode('cp1252')
-        else:
-            return text
+timeNow = datetime.now().strftime('%H:%M')
+
+
+def header_decode(header_text):
+	text, encoding = decode_header(header_text)[0]
+	if encoding:
+		try:
+			return text.decode(encoding)
+		except:  # fallback on decode error to windows encoding as this may be introduced by sloppy mail clients
+			return text.decode('cp1252')
+	else:
+		return text
+
+
 # connect
 try:
 	imap = imaplib.IMAP4_SSL(imap_host)
@@ -79,35 +84,35 @@ except:
 		imap = imaplib.IMAP4(host=imap_host, port=port)
 		imap.login(username, password)
 	except:
-		print("Can't get through :(")
+		print("Can't get through :( ${alignr}", timeNow)
 		exit(1)
 try:
 	imap.select("INBOX")
-	messages = imap.search(None,'UNSEEN')
+	messages = imap.search(None, 'UNSEEN')
 	for message in messages:
-		        if messages != None and len(messages) > 0:
-		            nums = messages[1][0].split()
-		            count = (len(nums))
-		        else:
-		            count = 0
-	print(username + ": " + str(count) + "${alignr}" + datetime.now().strftime('%H:%M'))
+		if messages is not None and len(messages) > 0:
+			nums = messages[1][0].split()
+			count = (len(nums))
+		else:
+			count = 0
+	print(username + ": " + str(count) + "${alignr}" + timeNow)
 	if count > 0:
 		i = 1
 		for num in reversed(nums):
-					status, message_info = imap.fetch(num, '(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT)])')
-					message_info = message_info[0][1].decode('utf-8')
-					sender = re.search('From:.*\n',message_info)
-					sender =  decodeHeader(sender[0][6:].strip())
-					subject = re.sub('From:.*\n','',message_info) # remove sender line, leaving subject
-					if subject != None:
-						subject = str(decodeHeader(subject[9:].strip()))
-					else:
-						subject = 'No subject'
-					output = sender + " -- " + subject
-					print("${voffset 6}" + output)
-					i = i+1
-					if i > int(limit): #Stop at limit. That'll do.
-						break
+			status, message_info = imap.fetch(num, '(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT)])')
+			message_info = message_info[0][1].decode('utf-8')
+			sender = re.search('From:.*\n', message_info)
+			sender = header_decode(sender[0][6:].strip())
+			subject = re.sub('From:.*\n', '', message_info)  # remove sender line, leaving subject
+			if subject is not None:
+				subject = str(header_decode(subject[9:].strip()))
+			else:
+				subject = 'No subject'
+			output = sender + " -- " + subject
+			print("${voffset 6}" + output)
+			i = i+1
+			if i > int(limit):  # Stop at limit. That'll do.
+				break
 except Exception as e:
 	print("Can't retrieve messages :(", e)
 imap.close()
